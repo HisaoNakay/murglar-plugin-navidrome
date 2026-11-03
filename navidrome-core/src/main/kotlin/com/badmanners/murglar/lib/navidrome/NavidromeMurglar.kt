@@ -79,6 +79,9 @@ class NavidromeMurglar(
 
         const val PAGE_SIZE = 50
 
+        // desktop Murglar may deliver the same TrackEnd twice
+        private const val DUPLICATE_SUBMISSION_WINDOW_MS = 5000
+
         private const val SMALL_COVER_SIZE = 300
         private const val BIG_COVER_SIZE = 1200
 
@@ -282,6 +285,9 @@ class NavidromeMurglar(
         return client.call("getPlaylist", "id" to playlistId).getJsonObject("playlist")
     }
 
+    // search3 with an empty query returns the whole library
+    suspend fun getAllTracks(page: Int): List<NavidromeTrack> = searchTracks("", page)
+
     suspend fun searchTracks(query: String, page: Int): List<NavidromeTrack> =
         search(query, "song", page).getJsonArrayOpt("song").toTracks()
 
@@ -336,7 +342,21 @@ class NavidromeMurglar(
 
     fun logEvent(message: String) = logger.i("Navidrome", message)
 
+    private var lastSubmission: Pair<String, Long>? = null
+
+    @Synchronized
+    private fun isDuplicateSubmission(trackId: String): Boolean {
+        val now = System.currentTimeMillis()
+        val last = lastSubmission
+        lastSubmission = trackId to now
+        return last != null && last.first == trackId && now - last.second < DUPLICATE_SUBMISSION_WINDOW_MS
+    }
+
     suspend fun scrobble(track: NavidromeTrack, submission: Boolean) {
+        if (submission && isDuplicateSubmission(track.id)) {
+            logger.i("Navidrome", "Scrobble ${track.id} skipped as duplicate")
+            return
+        }
         logger.i("Navidrome", "Scrobble ${track.id}, submission=$submission")
         try {
             loginResolver.checkLogged()

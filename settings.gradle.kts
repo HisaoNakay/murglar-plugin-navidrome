@@ -26,7 +26,7 @@ dependencyResolutionManagement {
     versionCatalogs {
         create("catalog") {
             version("murglar-plugins", "9.0")
-            version("navidrome", "1")
+            version("navidrome", "2")
 
             plugin("murglar-plugin-core", "murglar-gradle-plugin-core").versionRef("murglar-plugins")
             plugin("murglar-plugin-android", "murglar-gradle-plugin-android").versionRef("murglar-plugins")

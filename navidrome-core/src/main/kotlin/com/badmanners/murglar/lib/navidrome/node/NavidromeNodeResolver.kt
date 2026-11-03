@@ -132,6 +132,15 @@ class NavidromeNodeResolver(
             nodeContentSupplier = ::getAllArtists
         ),
         Root(
+            pattern = "allTracks",
+            name = messages::allTracks,
+            paging = PAGEABLE,
+            hasSubdirectories = false,
+            isOwn = false,
+            contentNodeType = TRACK,
+            nodeContentSupplier = ::getAllTracks
+        ),
+        Root(
             pattern = "randomTracks",
             name = messages::randomTracks,
             paging = ENDLESSLY_PAGEABLE,
@@ -243,6 +252,9 @@ class NavidromeNodeResolver(
 
     private suspend fun getAllArtists(parentPath: Path, page: Int?, params: Map<String, String>) =
         murglar.getAllArtists().convertArtists(parentPath)
+
+    private suspend fun getAllTracks(parentPath: Path, page: Int?, params: Map<String, String>) =
+        murglar.getAllTracks(page!!).convertTracks(parentPath)
 
     private suspend fun getRandomTracks(parentPath: Path, page: Int?, params: Map<String, String>) =
         murglar.getRandomTracks().convertTracks(parentPath)

@@ -24,6 +24,7 @@ object NavidromeDefaultMessages : DefaultMessages(), NavidromeMessages {
     override val frequentAlbums = "Most played"
     override val randomAlbums = "Random albums"
     override val alphabeticalAlbums = "All albums"
+    override val allTracks = "All tracks"
     override val randomTracks = "Random tracks"
     override val genres = "Genres"
 }

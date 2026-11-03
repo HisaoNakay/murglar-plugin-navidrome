@@ -24,6 +24,7 @@ object NavidromeRussianMessages : RussianMessages(), NavidromeMessages {
     override val frequentAlbums = "Часто слушаемые"
     override val randomAlbums = "Случайные альбомы"
     override val alphabeticalAlbums = "Все альбомы"
+    override val allTracks = "Все треки"
     override val randomTracks = "Случайные треки"
     override val genres = "Жанры"
 }

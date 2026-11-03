@@ -23,6 +23,7 @@ interface NavidromeMessages : Messages {
     val frequentAlbums: String
     val randomAlbums: String
     val alphabeticalAlbums: String
+    val allTracks: String
     val randomTracks: String
     val genres: String
 }
