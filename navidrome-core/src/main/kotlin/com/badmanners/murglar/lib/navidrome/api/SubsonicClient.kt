@@ -12,15 +12,6 @@ import com.badmanners.murglar.lib.core.utils.getIntOpt
 import com.badmanners.murglar.lib.core.utils.getJsonObjectOpt
 import com.badmanners.murglar.lib.core.utils.getStringOpt
 import com.badmanners.murglar.lib.navidrome.localization.NavidromeMessages
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonObject
 import java.io.IOException
 import java.net.Inet4Address
@@ -29,9 +20,14 @@ import java.net.NetworkInterface
 import java.net.Socket
 import java.net.URI
 import java.security.SecureRandom
+import java.util.concurrent.Callable
+import java.util.concurrent.Executors
+import java.util.concurrent.Semaphore
 
 
 /**
+ * NB: host app doesn't provide kotlinx.coroutines to plugins (it's minified away), so only java concurrency here.
+ *
  * Subsonic API client, that survives server IP changes (e.g. laptop on the phone's hotspot):
  * when the saved address stops answering, it scans local /24 networks of this device for the server.
  */
@@ -119,7 +115,7 @@ class SubsonicClient(
     @Volatile
     private var lastSuccessMs = 0L
 
-    private val discoveryMutex = Mutex()
+    private val discoveryLock = Semaphore(1)
 
 
     /**
@@ -195,7 +191,16 @@ class SubsonicClient(
      *
      * @return new server url (it's also saved) or null if nothing found.
      */
-    suspend fun discover(failedUrl: String = serverUrl): String? = discoveryMutex.withLock {
+    suspend fun discover(failedUrl: String = serverUrl): String? {
+        discoveryLock.acquire()
+        try {
+            return discoverLocked(failedUrl)
+        } finally {
+            discoveryLock.release()
+        }
+    }
+
+    private suspend fun discoverLocked(failedUrl: String): String? {
         // address was already changed by a concurrent discovery
         serverUrl.takeIf { it != failedUrl && it.isNotEmpty() }?.let { return it }
 
@@ -224,7 +229,7 @@ class SubsonicClient(
                 return url
             }
         }
-        null
+        return null
     }
 
     private suspend fun callAt(baseUrl: String, method: String, params: List<Pair<String, Any>>): JsonObject {
@@ -292,19 +297,22 @@ class SubsonicClient(
         return hosts.toList()
     }
 
-    private suspend fun scan(hosts: List<String>, port: Int): List<String> = coroutineScope {
-        val semaphore = Semaphore(SCAN_PARALLELISM)
-        hosts.map { host ->
-            async { semaphore.withPermit { host.takeIf { probe(it, port, SCAN_TIMEOUT_MS) } } }
-        }.awaitAll().filterNotNull()
+    private fun scan(hosts: List<String>, port: Int): List<String> {
+        if (hosts.isEmpty())
+            return emptyList()
+        val executor = Executors.newFixedThreadPool(minOf(SCAN_PARALLELISM, hosts.size))
+        try {
+            val tasks = hosts.map { host -> Callable { host.takeIf { probe(it, port, SCAN_TIMEOUT_MS) } } }
+            return executor.invokeAll(tasks).mapNotNull { it.get() }
+        } finally {
+            executor.shutdownNow()
+        }
     }
 
-    private suspend fun probe(host: String, port: Int, timeoutMs: Int): Boolean = withContext(Dispatchers.IO) {
-        try {
-            Socket().use { it.connect(InetSocketAddress(host, port), timeoutMs) }
-            true
-        } catch (_: Exception) {
-            false
-        }
+    private fun probe(host: String, port: Int, timeoutMs: Int): Boolean = try {
+        Socket().use { it.connect(InetSocketAddress(host, port), timeoutMs) }
+        true
+    } catch (_: Exception) {
+        false
     }
 }

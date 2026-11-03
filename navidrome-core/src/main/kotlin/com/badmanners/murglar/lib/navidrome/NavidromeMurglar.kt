@@ -47,13 +47,12 @@ import com.badmanners.murglar.lib.navidrome.model.NavidromeArtist
 import com.badmanners.murglar.lib.navidrome.model.NavidromePlaylist
 import com.badmanners.murglar.lib.navidrome.model.NavidromeTrack
 import com.badmanners.murglar.lib.navidrome.node.NavidromeNodeResolver
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import org.threeten.bp.LocalDate
+import kotlin.coroutines.Continuation
+import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.coroutines.startCoroutine
 import java.util.Locale
 
 
@@ -94,8 +93,6 @@ class NavidromeMurglar(
             Extension.WMA, Extension.WEBM, Extension.MKV, Extension.UNKNOWN
         )
     }
-
-    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val client = SubsonicClient(preferences, network, logger, messages)
 
@@ -348,7 +345,8 @@ class NavidromeMurglar(
 
     private fun findServerInBackground() {
         notifications.shortNotify(messages.searchingServer)
-        backgroundScope.launch {
+        // host app doesn't provide kotlinx.coroutines, so plain thread + stdlib coroutine
+        runInBackground {
             val url = try {
                 client.discover()
             } catch (e: Exception) {
@@ -361,6 +359,12 @@ class NavidromeMurglar(
             }
         }
     }
+
+    private fun runInBackground(block: suspend () -> Unit) = Thread {
+        block.startCoroutine(Continuation(EmptyCoroutineContext) { result ->
+            result.exceptionOrNull()?.let { logger.e("Navidrome", "Background task failed", it) }
+        })
+    }.apply { isDaemon = true }.start()
 
     private fun coverUrl(coverArtId: String?, size: Int) =
         coverArtId?.takeIf { it.isNotEmpty() }?.let { client.buildUrl("getCoverArt", "id" to it, "size" to size) }
