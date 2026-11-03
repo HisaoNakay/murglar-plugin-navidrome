@@ -1,0 +1,64 @@
+name: build
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Prepare signing config
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > keystore.jks
+          cat > local.properties <<EOF
+          sdk.dir=$ANDROID_HOME
+          storeFile=$GITHUB_WORKSPACE/keystore.jks
+          storePassword=$STORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Build
+        run: ./gradlew build --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: murglar-plugin-navidrome
+          path: |
+            navidrome-android/build/outputs/apk/release/*.apk
+            navidrome-core/build/libs/*.jar
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            navidrome-android/build/outputs/apk/release/*.apk
+            navidrome-core/build/libs/*.jar
+
+      - name: Cleanup secrets
+        if: always()
+        run: rm -f keystore.jks local.properties
