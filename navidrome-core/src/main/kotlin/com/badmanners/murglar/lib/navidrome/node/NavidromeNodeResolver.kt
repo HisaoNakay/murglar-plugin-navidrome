@@ -318,6 +318,7 @@ class NavidromeNodeResolver(
 
     private suspend fun NavidromeTrack.handleEndEvent(endTimeMs: Int) {
         val threshold = minOf(durationMs / 2, SCROBBLE_MAX_MS.toLong())
+        murglar.logEvent("Track $id ended at $endTimeMs ms, threshold $threshold ms")
         if (endTimeMs >= threshold)
             murglar.scrobble(this, submission = true)
     }

@@ -334,11 +334,19 @@ class NavidromeMurglar(
         client.call(if (star) "star" else "unstar", idParam to id)
     }
 
+    fun logEvent(message: String) = logger.i("Navidrome", message)
+
     suspend fun scrobble(track: NavidromeTrack, submission: Boolean) {
-        loginResolver.checkLogged()
-        client.call(
-            "scrobble", "id" to track.id, "submission" to submission, "time" to System.currentTimeMillis()
-        )
+        logger.i("Navidrome", "Scrobble ${track.id}, submission=$submission")
+        try {
+            loginResolver.checkLogged()
+            client.call(
+                "scrobble", "id" to track.id, "submission" to submission, "time" to System.currentTimeMillis()
+            )
+        } catch (e: Exception) {
+            logger.e("Navidrome", "Scrobble ${track.id} failed", e)
+            throw e
+        }
     }
     //endregion query methods
 
