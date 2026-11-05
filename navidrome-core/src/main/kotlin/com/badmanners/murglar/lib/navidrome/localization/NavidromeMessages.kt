@@ -21,6 +21,7 @@ interface NavidromeMessages : Messages {
     val newestAlbums: String
     val recentAlbums: String
     val frequentAlbums: String
+    val frequentTracks: String
     val randomAlbums: String
     val alphabeticalAlbums: String
     val allTracks: String

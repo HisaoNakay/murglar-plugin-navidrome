@@ -105,6 +105,15 @@ class NavidromeNodeResolver(
             nodeContentSupplier = { parentPath, page, _ -> getAlbumList("frequent", parentPath, page) }
         ),
         Root(
+            pattern = "frequentTracks",
+            name = messages::frequentTracks,
+            paging = NON_PAGEABLE,
+            hasSubdirectories = false,
+            isOwn = false,
+            contentNodeType = TRACK,
+            nodeContentSupplier = ::getFrequentTracks
+        ),
+        Root(
             pattern = "randomAlbums",
             name = messages::randomAlbums,
             paging = ENDLESSLY_PAGEABLE,
@@ -255,6 +264,9 @@ class NavidromeNodeResolver(
 
     private suspend fun getAllTracks(parentPath: Path, page: Int?, params: Map<String, String>) =
         murglar.getAllTracks(page!!).convertTracks(parentPath)
+
+    private suspend fun getFrequentTracks(parentPath: Path, page: Int?, params: Map<String, String>) =
+        murglar.getFrequentTracks().convertTracks(parentPath)
 
     private suspend fun getRandomTracks(parentPath: Path, page: Int?, params: Map<String, String>) =
         murglar.getRandomTracks().convertTracks(parentPath)

@@ -78,6 +78,9 @@ class NavidromeMurglar(
         )
 
         const val PAGE_SIZE = 50
+        private const val FREQUENT_TRACKS_COUNT = 100
+        private const val FREQUENT_SCAN_PAGE = 500
+        private const val FREQUENT_SCAN_LIMIT = 50_000
 
         // desktop Murglar may deliver the same TrackEnd twice
         private const val DUPLICATE_SUBMISSION_WINDOW_MS = 5000
@@ -243,6 +246,27 @@ class NavidromeMurglar(
             "getAlbumList2", "type" to type, "size" to PAGE_SIZE, "offset" to page * PAGE_SIZE
         )
         return response.getJsonObjectOpt("albumList2")?.getJsonArrayOpt("album").toAlbums()
+    }
+
+    // Subsonic has no per-song "most played" list: page through the whole library and sort by playCount
+    suspend fun getFrequentTracks(): List<NavidromeTrack> {
+        loginResolver.checkLogged()
+        val played = mutableListOf<JsonObject>()
+        var offset = 0
+        while (offset < FREQUENT_SCAN_LIMIT) {
+            val songs = client.call(
+                "search3", "query" to "", "songCount" to FREQUENT_SCAN_PAGE, "songOffset" to offset,
+                "albumCount" to 0, "artistCount" to 0
+            ).getJsonObjectOpt("searchResult3")?.getJsonArrayOpt("song").orEmpty().mapNotNull { it.jsonObjectOpt }
+            played += songs.filter { (it.getIntOpt("playCount") ?: 0) > 0 }
+            if (songs.size < FREQUENT_SCAN_PAGE) break
+            offset += FREQUENT_SCAN_PAGE
+        }
+        return played
+            .sortedWith(compareByDescending<JsonObject> { it.getIntOpt("playCount") ?: 0 }
+                .thenByDescending { it.getStringOpt("played").orEmpty() })
+            .take(FREQUENT_TRACKS_COUNT)
+            .map { it.toTrack() }
     }
 
     suspend fun getRandomTracks(): List<NavidromeTrack> {
